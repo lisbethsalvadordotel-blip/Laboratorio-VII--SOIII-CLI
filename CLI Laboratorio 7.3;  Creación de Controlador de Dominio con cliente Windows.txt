@@ -1,0 +1,296 @@
+Comandos utilizados, práctica laboratorio 7.3: Controlador de Dominios y Compartir Archivos.
+
+Creación de Controlador de Dominio con cliente Windows.
+
+============================================
+
+# CONFIGURACIÓN INICIAL
+
+# Servidor: 192.168.100.17
+# Cliente Windows: 192.168.100.204
+
+------------------------------------------------------------
+
+# Configurar el nombre del host del servidor
+
+hostnamectl set-hostname SO3.inet
+
+------------------------------------------------------------
+
+# Configurar IP estática y DNS con nmtui (recomendado)
+nmtui
+
+# Asegurarse:
+# IP: 192.168.100.17
+# DNS: 192.168.100.17
+# Search Domain: SO3.inet
+
+------------------------------------------------------------
+
+# Configurar hosts
+
+nano /etc/hosts
+
+> 192.168.100.17 SO3-DOM SO3.inet
+
+------------------------------------------------------------
+
+# Reiniciar tarjeta de red
+
+sudo nmcli device disconnect ens160
+sudo nmcli device connect ens160
+
+------------------------------------------------------------
+
+# Configurar resolv.conf (CORREGIDO)
+
+sudo nano /etc/resolv.conf
+
+> nameserver 127.0.0.1
+
+------------------------------------------------------------
+
+# Respaldar configuraciones
+
+sudo mv /etc/samba/smb.conf /etc/samba/smb.conf.backup
+sudo mv /etc/krb5.conf /etc/krb5.conf.backup
+
+------------------------------------------------------------
+
+# DESCARGA E INSTALACIÓN DE SAMBA (se mantiene tu método)
+
+wget https://download.samba.org/pub/samba/stable/samba-4.16.2.tar.gz
+
+sudo mkdir -p /samba
+sudo mv samba-4.16.2.tar.gz /samba/
+
+cd /samba/
+ls
+
+sudo tar -zxf samba-4.16.2.tar.gz
+cd samba-4.16.2/
+
+------------------------------------------------------------
+
+# Dependencias
+
+sudo dnf -y install epel-release
+sudo dnf config-manager --set-enabled crb
+dnf -y update
+
+sudo dnf -y install \
+docbook-style-xsl \
+python3-markdown \
+bison \
+dbus-devel \
+flex \
+gcc \
+gdb \
+gnutls-devel \
+jansson-devel \
+keyutils-libs-devel \
+krb5-workstation \
+libacl-devel \
+libaio-devel \
+libarchive-devel \
+libattr-devel \
+libblkid-devel \
+libtasn1 \
+libtasn1-tools \
+libxml2-devel \
+libxslt \
+lmdb-devel \
+openldap-devel \
+pam-devel \
+perl-ExtUtils-MakeMaker \
+perl-Parse-Yapp \
+popt-devel \
+python3-cryptography \
+python3-dns \
+python3-gpg \
+python3-devel \
+readline-devel \
+rpcgen \
+systemd-devel \
+tar \
+zlib-devel \
+perl-JSON \
+gpgme-devel \
+screen
+
+sudo dnf install perl-FindBin
+
+dnf -y update
+
+------------------------------------------------------------
+
+# Compilar
+
+./configure
+make -j 2
+sudo make install
+
+------------------------------------------------------------
+
+# Agregar PATH
+
+export PATH=/usr/local/samba/bin/:/usr/local/samba/sbin/:$PATH
+
+sudo nano ~/.bash_profile
+
+> PATH=$PATH:$HOME/bin:/usr/local/samba/bin/:/usr/local/samba/sbin/:$PATH
+> export PATH
+
+------------------------------------------------------------
+
+# PROVISIÓN DEL DOMINIO
+
+sudo /usr/local/samba/bin/samba-tool domain provision --use-rfc2307 --interactive --option="interfaces=lo ens160" --option="bind interfaces only=yes"
+
+>
+
+Realm: SO3.inet
+Domain: SO3-DOM
+Server Role: dc
+DNS backend: SAMBA_INTERNAL
+DNS forwarder: 8.8.8.8
+
+# Contraseña admin:
+(la que tú pongas)
+
+------------------------------------------------------------
+
+# CORREGIR DNS LOCAL
+
+nano /etc/resolv.conf
+
+> nameserver 127.0.0.1
+
+------------------------------------------------------------
+
+# Iniciar Samba
+
+sudo /usr/local/samba/sbin/samba
+
+------------------------------------------------------------
+
+# Copiar configuración Kerberos
+
+sudo cp /usr/local/samba/private/krb5.conf /etc/krb5.conf
+
+------------------------------------------------------------
+
+# Verificaciones
+
+host -t SRV _ldap._tcp.SO3.inet
+host -t SRV _kerberos._udp.SO3.inet
+
+ping SO3.inet
+
+------------------------------------------------------------
+
+# FIREWALL (CORREGIDO A TU RED)
+
+sudo systemctl stop firewalld
+
+sudo dnf -y install iptables-services
+
+sudo systemctl start iptables
+sudo systemctl enable iptables
+
+------------------------------------------------------------
+
+sudo nano /etc/sysconfig/iptables
+
+> -A INPUT -p tcp -s 192.168.100.0/24 -m multiport --dports 53,88,135,139,389,445,464,636,3268,49152:65535 -j ACCEPT
+> -A INPUT -p udp -s 192.168.100.0/24 -m multiport --dports 53,123,137,138,389,636 -j ACCEPT
+
+------------------------------------------------------------
+
+sudo systemctl restart iptables
+
+------------------------------------------------------------
+
+# CREAR USUARIO (LO QUE PIDE LA PRÁCTICA)
+
+sudo /usr/local/samba/bin/samba-tool user create lanegracubana TU_MATRICULA \
+--given-name="La Negra" \
+--surname="Cubana" \
+--mail=lanegracubana@so3.inet
+
+------------------------------------------------------------
+
+# Verificar usuario
+
+sudo /usr/local/samba/bin/samba-tool user list
+
+------------------------------------------------------------
+
+# =========================
+# CLIENTE WINDOWS
+# =========================
+
+# Configurar DNS
+
+Preferred DNS:
+192.168.100.17
+
+------------------------------------------------------------
+
+# Verificar conexión
+
+ping SO3.inet
+
+------------------------------------------------------------
+
+# UNIR AL DOMINIO
+
+Settings > About > Advanced system settings  
+Computer Name > Change  
+Domain: SO3.inet
+
+------------------------------------------------------------
+
+# Credenciales:
+
+Usuario: Administrator  
+Contraseña: (la del provision)
+
+------------------------------------------------------------
+
+# Reiniciar Windows
+
+------------------------------------------------------------
+
+# LOGIN FINAL
+
+Usuario:
+SO3\lanegracubana
+
+Contraseña:
+TU_MATRICULA
+
+------------------------------------------------------------
+
+# RESULTADO ESPERADO
+
+# - Dominio SO3.inet creado
+# - Usuario lanegracubana creado
+# - Windows unido al dominio
+# - Login exitoso
+
+------------------------------------------------------------
+
+# ERRORES COMUNES
+
+# DNS mal:
+192.168.100.17
+
+# Dominio mal escrito:
+SO3.inet
+
+# No conecta:
+sudo /usr/local/samba/sbin/samba
+
+# Usuario no aparece:
+samba-tool user list
