@@ -1,0 +1,194 @@
+Comandos utilizados, práctica laboratorio 7.2:
+Controlador de Dominios y Compartir Archivos
+
+Creación de Fileserver compatible con Windows utilizando SAMBA
+
+============================================
+
+# =========================
+# EN EL SERVIDOR ROCKY LINUX
+# =========================
+
+# Instalar SAMBA y herramientas necesarias
+
+sudo dnf install samba samba-client samba-common -y
+
+------------------------------------------------------------
+
+# Habilitar e iniciar servicios SMB y NMB
+
+sudo systemctl enable --now smb nmb
+
+# Verificar estado
+
+sudo systemctl status smb
+sudo systemctl status nmb
+
+------------------------------------------------------------
+
+# Crear carpeta compartida
+
+sudo mkdir -p /srv/samba/public
+
+------------------------------------------------------------
+
+# Crear 100 archivos dentro de la carpeta compartida
+
+cd /srv/samba/public
+sudo touch Adrian{1..100}.txt
+
+# Verificar archivos
+
+ls
+
+------------------------------------------------------------
+
+# Crear grupo y usuario para SAMBA
+
+sudo groupadd sambausers
+sudo useradd -M -s /sbin/nologin lis
+sudo usermod -aG sambausers lis
+
+# Crear contraseña para SAMBA
+
+sudo smbpasswd -a lis
+
+------------------------------------------------------------
+
+# Asignar permisos a la carpeta
+
+sudo chown -R nobody:nobody /srv/samba/public
+sudo chmod -R 777 /srv/samba/public
+
+# Ajustar contexto SELinux
+
+sudo chcon -t samba_share_t /srv/samba/public
+
+------------------------------------------------------------
+
+# Configurar firewall para SAMBA
+
+sudo firewall-cmd --add-service=samba --permanent
+sudo firewall-cmd --reload
+
+------------------------------------------------------------
+
+# Editar archivo de configuración de SAMBA
+
+sudo nano /etc/samba/smb.conf
+
+# Agregar al final:
+
+[public]
+   path = /srv/samba/public
+   browsable = yes
+   writable = yes
+   guest ok = yes
+   read only = no
+   force user = nobody
+
+------------------------------------------------------------
+
+# Reiniciar servicios de SAMBA
+
+sudo systemctl restart smb nmb
+
+------------------------------------------------------------
+
+# Verificar configuración de SAMBA
+
+testparm
+
+============================================================
+# EN EL CLIENTE WINDOWS
+# =========================
+
+# Abrir el Explorador de archivos
+
+This PC > Map network drive
+
+# En la ruta escribir:
+
+\\IP_DEL_SERVIDOR\public
+
+# EJEMPLO:
+\\192.168.100.17\public
+
+# Marcar:
+Connect using different credentials
+
+# Finalizar
+
+# Ingresar credenciales del usuario creado en SAMBA
+# Usuario: lis
+# Contraseña: la configurada con smbpasswd
+
+------------------------------------------------------------
+
+# VERIFICAR EN WINDOWS
+
+# Deben aparecer los archivos:
+# Adrian1.txt hasta Adrian100.txt
+
+------------------------------------------------------------
+
+# EDITAR EL ARCHIVO Adrian99.txt EN WINDOWS
+
+# Abrir Adrian99.txt
+# Agregar la frase:
+
+el zumzum de la carabela
+
+# Guardar el archivo
+
+============================================================
+# VERIFICACIÓN FINAL EN LINUX
+# =========================
+
+cd /srv/samba/public
+
+cat Adrian99.txt
+
+# RESULTADO ESPERADO:
+# Debe mostrar la frase:
+# el zumzum de la carabela
+
+------------------------------------------------------------
+
+# COMANDOS CLAVE
+
+sudo systemctl status smb
+sudo systemctl status nmb
+ls /srv/samba/public
+cat /srv/samba/public/Adrian99.txt
+testparm
+
+------------------------------------------------------------
+
+# NOTAS IMPORTANTES
+
+# - El servidor Linux debe estar accesible desde Windows
+# - Deben estar en la misma red (Bridge o Host-Only)
+# - El firewall debe permitir samba
+# - La carpeta compartida debe tener permisos adecuados
+# - El archivo editado en Windows debe reflejarse en Linux
+
+------------------------------------------------------------
+
+# ERRORES COMUNES
+
+# Si Windows no ve la carpeta:
+ping IP_DEL_SERVIDOR
+
+# Si no conecta:
+sudo systemctl status smb
+sudo systemctl status nmb
+
+# Si la carpeta no abre:
+sudo firewall-cmd --list-all
+
+# Si hay error en la configuración:
+testparm
+
+# Si no se reflejan cambios:
+cat /srv/samba/public/Adrian99.txt
