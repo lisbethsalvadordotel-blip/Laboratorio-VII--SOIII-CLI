@@ -1,0 +1,216 @@
+Comandos utilizados, práctica laboratorio 7.1:
+Controlador de Dominios y Compartir Archivos
+
+COMPARTIR ARCHIVOS ENTRE LINUX UTILIZANDO NFS
+
+============================================
+
+REQUISITOS DEL LABORATORIO
+
+- VM Server (Rocky Linux / su distro)
+- VM Linux Cliente
+- VM Windows 10 o Mini Windows 10
+- Las máquinas deben estar en modo Bridge o Host-Only
+- Crear un snapshot antes de iniciar la práctica
+
+EJEMPLO DE RED:
+- Servidor NFS: 192.168.100.17
+- Cliente Linux: 192.168.100.204
+
+============================================================
+PARTE 1: CONFIGURACIÓN EN EL SERVIDOR NFS
+============================================================
+
+# Verificar IP del servidor
+
+ip a
+
+# Instalar NFS
+
+sudo dnf install nfs-utils -y
+
+------------------------------------------------------------
+
+# Iniciar y habilitar el servicio
+
+sudo systemctl start nfs-server
+sudo systemctl enable nfs-server
+sudo systemctl status nfs-server
+
+------------------------------------------------------------
+
+# Crear el directorio que se va a compartir
+
+sudo mkdir -p /var/nfs/os3
+
+# Entrar al directorio
+
+cd /var/nfs/os3
+
+# Crear 100 archivos
+
+sudo touch Adrian{1..100}.txt
+
+# Verificar archivos creados
+
+ls
+
+------------------------------------------------------------
+
+# Asignar permisos para que otros usuarios puedan acceder
+
+sudo chown nobody:nobody /var/nfs/os3
+sudo chmod 755 /var/nfs/os3
+
+------------------------------------------------------------
+
+# Configurar exports
+
+sudo nano /etc/exports
+
+# Agregar la siguiente línea:
+
+/var/nfs/os3 192.168.100.0/24(rw,sync,no_subtree_check)
+
+# Guardar y salir
+
+------------------------------------------------------------
+
+# Aplicar la configuración de exportación
+
+sudo exportfs -rav
+
+# Verificar exportaciones compartidas
+
+sudo exportfs -v
+
+------------------------------------------------------------
+
+# Permitir NFS en el firewall
+
+sudo firewall-cmd --permanent --add-service=nfs
+sudo firewall-cmd --reload
+
+============================================================
+PARTE 2: CONFIGURACIÓN EN EL CLIENTE LINUX
+============================================================
+
+# Verificar IP del cliente
+
+ip a
+
+# Instalar cliente NFS
+
+# Si el cliente también es Rocky / RHEL:
+sudo dnf install nfs-utils -y
+
+# Si el cliente es Ubuntu / Debian:
+sudo apt update
+sudo apt install nfs-common -y
+
+------------------------------------------------------------
+
+# Crear punto de montaje
+
+sudo mkdir -p /mnt/os3
+
+------------------------------------------------------------
+
+# Montar manualmente el recurso compartido
+
+sudo mount -t nfs 192.168.100.17:/var/nfs/os3 /mnt/os3
+
+------------------------------------------------------------
+
+# Verificar montaje
+
+df -h
+
+# Verificar archivos
+
+ls /mnt/os3
+
+# Deben aparecer:
+# Adrian1.txt hasta Adrian100.txt
+
+============================================================
+PARTE 3: MONTAJE AUTOMÁTICO CON FSTAB
+============================================================
+
+# Editar el archivo /etc/fstab
+
+sudo nano /etc/fstab
+
+# Agregar la línea:
+
+192.168.100.17:/var/nfs/os3 /mnt/os3 nfs defaults 0 0
+
+# Guardar y salir
+
+------------------------------------------------------------
+
+# Probar la configuración sin reiniciar
+
+sudo mount -a
+
+# Verificar nuevamente
+
+df -h
+ls /mnt/os3
+
+============================================================
+PARTE 4: PRUEBA FINAL
+============================================================
+
+# Reiniciar el cliente Linux
+
+sudo reboot
+
+# Luego de iniciar el sistema, verificar que el recurso se montó automáticamente
+
+df -h
+ls /mnt/os3
+
+# Si los archivos aparecen después del reinicio,
+# significa que el montaje automático funcionó correctamente.
+
+============================================================
+RESULTADO ESPERADO
+============================================================
+
+- El servidor comparte la carpeta /var/nfs/os3
+- El cliente Linux puede montar la carpeta
+- Se visualizan los 100 archivos Adrian1.txt a Adrian100.txt
+- Después del reinicio del cliente, el recurso se monta automáticamente
+
+============================================================
+COMANDOS CLAVE
+============================================================
+
+ip a
+sudo systemctl status nfs-server
+sudo exportfs -rav
+sudo exportfs -v
+sudo mount -t nfs 192.168.100.17:/var/nfs/os3 /mnt/os3
+df -h
+ls /mnt/os3
+sudo mount -a
+
+============================================================
+ERRORES COMUNES
+============================================================
+
+# Si no monta el recurso:
+ping 192.168.100.17
+
+# Si el servicio no está activo:
+sudo systemctl status nfs-server
+
+# Si hay error en fstab:
+sudo mount -a
+
+# Si no aparecen los archivos:
+ls /mnt/os3
+
+# Si el firewall bloquea:
+sudo firewall-cmd --list-all
